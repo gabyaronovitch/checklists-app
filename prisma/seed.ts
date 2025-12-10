@@ -10,6 +10,15 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
     console.log("Seeding database...");
 
+    // Delete all non-default checklists to ensure fresh install only has defaults
+    // Steps are automatically deleted due to CASCADE
+    const deletedCount = await prisma.checklist.deleteMany({
+        where: { isDefault: false },
+    });
+    if (deletedCount.count > 0) {
+        console.log(`Deleted ${deletedCount.count} non-default checklist(s)`);
+    }
+
     // Create default categories
     const categories = await Promise.all([
         prisma.category.upsert({
