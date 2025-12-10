@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, FolderKanban, Copy, Trash2, MoreHorizontal, Upload, Download, FileText, CheckCircle, AlertCircle } from "lucide-react";
+import { Plus, FolderKanban, Copy, Trash2, MoreHorizontal, Upload, Download, FileText, CheckCircle, AlertCircle, Info } from "lucide-react";
 import ChecklistCard from "@/components/ChecklistCard";
 import Modal from "@/components/Modal";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -26,6 +26,10 @@ export default function Dashboard() {
   const [csvParseResult, setCsvParseResult] = useState<CSVParseResult | null>(null);
   const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Export modal state
+  const [exportModal, setExportModal] = useState<{ checklistId: string; title: string } | null>(null);
+  const [exportFilename, setExportFilename] = useState("");
 
   useEffect(() => {
     fetchChecklists();
@@ -99,7 +103,6 @@ export default function Dashboard() {
       });
 
       if (res.ok) {
-        const created = await res.json();
         const stepCount = csvParseResult?.steps.length || 0;
 
         setShowCreateModal(false);
@@ -187,14 +190,21 @@ export default function Dashboard() {
     setActionMenuId(null);
   };
 
-  const handleExport = async (id: string) => {
+  const openExportModal = (checklist: Checklist) => {
+    const safeTitle = checklist.title.replace(/[^a-z0-9]/gi, "_").substring(0, 50);
+    setExportFilename(`${safeTitle}_steps.csv`);
+    setExportModal({ checklistId: checklist.id, title: checklist.title });
+    setActionMenuId(null);
+  };
+
+  const handleExport = async () => {
+    if (!exportModal) return;
+
     try {
-      const res = await fetch(`/api/checklists/${id}/export`);
+      const res = await fetch(`/api/checklists/${exportModal.checklistId}/export`);
       if (res.ok) {
         const blob = await res.blob();
-        const contentDisposition = res.headers.get("Content-Disposition");
-        const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-        const filename = filenameMatch?.[1] || "steps.csv";
+        const filename = exportFilename.endsWith(".csv") ? exportFilename : `${exportFilename}.csv`;
 
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
@@ -204,11 +214,11 @@ export default function Dashboard() {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+        setExportModal(null);
       }
     } catch (error) {
       console.error("Failed to export checklist:", error);
     }
-    setActionMenuId(null);
   };
 
   const handleDelete = async (id: string) => {
@@ -299,7 +309,7 @@ export default function Dashboard() {
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                handleExport(checklist.id);
+                                openExportModal(checklist);
                               }}
                             >
                               <Download size={16} />
@@ -480,9 +490,6 @@ export default function Dashboard() {
               <span style={{ color: "var(--color-text-subtle)", fontSize: 14 }}>
                 Click to select a CSV file
               </span>
-              <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
-                Columns: title, description, durationMinutes, status, etc.
-              </span>
             </label>
           </div>
 
@@ -556,6 +563,138 @@ export default function Dashboard() {
               <span>{importStatus.message}</span>
             </div>
           )}
+
+          {/* CSV Format Instructions */}
+          <div
+            style={{
+              marginTop: 16,
+              padding: 12,
+              backgroundColor: "var(--color-bg)",
+              borderRadius: 6,
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+              <Info size={14} color="var(--color-primary)" />
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text)" }}>
+                CSV Format Reference
+              </span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ backgroundColor: "var(--color-surface)" }}>
+                    <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--color-border)", fontWeight: 600 }}>Field</th>
+                    <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--color-border)", fontWeight: 600 }}>Type</th>
+                    <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--color-border)", fontWeight: 600 }}>Required</th>
+                    <th style={{ padding: "6px 8px", textAlign: "left", borderBottom: "1px solid var(--color-border)", fontWeight: 600 }}>Example</th>
+                  </tr>
+                </thead>
+                <tbody style={{ color: "var(--color-text-subtle)" }}>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>title</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Text</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)", color: "var(--color-status-rejected)" }}>Yes</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Review documentation</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>description</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Text</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>No</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Check all sections</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>durationMinutes</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Number</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>No</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>60</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>status</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Enum</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>No</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>draft | started | paused | completed | rejected</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>startDatetime</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>ISO Date</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>No</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>2024-01-15T09:00:00</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>endDatetime</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>ISO Date</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>No</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>2024-01-15T10:00:00</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}><code style={{ fontSize: 10 }}>comments</code></td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Text</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>No</td>
+                    <td style={{ padding: "5px 8px", borderBottom: "1px solid var(--color-border)" }}>Need input from team</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "5px 8px" }}><code style={{ fontSize: 10 }}>orderIndex</code></td>
+                    <td style={{ padding: "5px 8px" }}>Number</td>
+                    <td style={{ padding: "5px 8px" }}>No</td>
+                    <td style={{ padding: "5px 8px" }}>0, 1, 2...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Export Modal */}
+      <Modal
+        isOpen={exportModal !== null}
+        onClose={() => setExportModal(null)}
+        title="Export Steps to CSV"
+        footer={
+          <>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setExportModal(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              onClick={handleExport}
+              disabled={!exportFilename.trim()}
+            >
+              <Download size={16} />
+              Export
+            </button>
+          </>
+        }
+      >
+        <div className="form-group">
+          <label className="form-label">Checklist</label>
+          <div style={{
+            padding: "10px 12px",
+            backgroundColor: "var(--color-bg)",
+            borderRadius: 4,
+            border: "1px solid var(--color-border)",
+            fontSize: 14,
+            color: "var(--color-text)"
+          }}>
+            {exportModal?.title}
+          </div>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Filename</label>
+          <input
+            type="text"
+            className="form-input"
+            value={exportFilename}
+            onChange={(e) => setExportFilename(e.target.value)}
+            placeholder="Enter filename"
+          />
+          <p style={{ marginTop: 6, fontSize: 12, color: "var(--color-text-muted)" }}>
+            The file will be downloaded to your default downloads folder.
+          </p>
         </div>
       </Modal>
 
