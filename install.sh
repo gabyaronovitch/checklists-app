@@ -28,31 +28,52 @@ echo ""
 # Step 1: Install dependencies
 echo "📦 Step 1/3: Installing dependencies..."
 echo "   (This may take a few minutes)"
-npm install --silent
+echo ""
+npm install
 if [ $? -ne 0 ]; then
+    echo ""
     echo "❌ Failed to install dependencies"
+    echo ""
+    echo "Try running manually:"
+    echo "   npm install"
+    echo ""
     exit 1
 fi
+echo ""
 echo "✓ Dependencies installed"
 echo ""
 
 # Step 2: Setup database
 echo "🗄️  Step 2/3: Setting up database..."
-npm run db:setup --silent
+npm run db:setup
 if [ $? -ne 0 ]; then
+    echo ""
     echo "❌ Failed to setup database"
+    echo ""
+    echo "Try running manually:"
+    echo "   npm run db:generate"
+    echo "   npm run db:push"
+    echo "   npm run db:seed"
+    echo ""
     exit 1
 fi
+echo ""
 echo "✓ Database ready"
 echo ""
 
 # Step 3: Build for production
 echo "🔨 Step 3/3: Building application..."
-npm run build --silent
+npm run build
 if [ $? -ne 0 ]; then
+    echo ""
     echo "❌ Failed to build application"
+    echo ""
+    echo "Try running in development mode instead:"
+    echo "   npm run dev"
+    echo ""
     exit 1
 fi
+echo ""
 echo "✓ Build complete"
 echo ""
 
