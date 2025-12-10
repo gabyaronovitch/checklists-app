@@ -88,14 +88,37 @@ npm install
 
 Wait for it to complete. This may take a few minutes.
 
-#### Step 4: Setup the database (first time only)
+#### Step 4: Create the environment file (first time only)
+
+Create a file named `.env` in the app folder with the database configuration.
+
+**On Mac/Linux:**
+```bash
+echo 'DATABASE_URL="file:./prisma/dev.db"' > .env
+```
+
+**On Windows (Command Prompt):**
+```bash
+echo DATABASE_URL="file:./prisma/dev.db" > .env
+```
+
+**Or manually:**
+1. Create a new file called `.env` in the main `checklists-app` folder
+2. Open it in any text editor
+3. Paste this line:
+   ```
+   DATABASE_URL="file:./prisma/dev.db"
+   ```
+4. Save the file
+
+#### Step 5: Setup the database (first time only)
 
 ```bash
 npx prisma db push
 npm run db:seed
 ```
 
-#### Step 5: Start the application
+#### Step 6: Start the application
 
 ```bash
 npm run dev
@@ -110,7 +133,7 @@ You should see output like:
 ✓ Ready in 1101ms
 ```
 
-#### Step 6: Open in your browser
+#### Step 7: Open in your browser
 
 Open your web browser (Chrome, Safari, Firefox, etc.) and go to:
 
@@ -132,6 +155,19 @@ To stop the app, go back to Terminal and press:
 ---
 
 ## ⚠️ Common Issues & Fixes
+
+### Issue: "Missing required environment variable: DATABASE_URL"
+
+**Cause**: The `.env` file is missing or doesn't contain the database URL.
+
+**Fix**: Create the `.env` file in the app folder with this content:
+```
+DATABASE_URL="file:./prisma/dev.db"
+```
+
+See Step 4 above for detailed instructions.
+
+---
 
 ### Issue: "command not found: node"
 
