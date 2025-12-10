@@ -121,8 +121,15 @@ npm run db:setup
 
 #### Step 6: Start the application
 
+**For Development** (with auto-reload when you edit code):
 ```bash
 npm run dev
+```
+
+**For Production** (faster, optimized):
+```bash
+npm run build
+npm run start
 ```
 
 You should see output like:
@@ -152,6 +159,21 @@ To stop the app, go back to Terminal and press:
 
 - **Mac**: `Ctrl + C`
 - **Windows**: `Ctrl + C`
+
+### Running in the Background (Production)
+
+If you want the app to keep running even after closing Terminal:
+
+**On Mac/Linux:**
+```bash
+npm run build
+nohup npm run start > app.log 2>&1 &
+```
+
+**To stop it later:**
+```bash
+pkill -f "next start"
+```
 
 ---
 
