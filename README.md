@@ -77,7 +77,7 @@ cd /path/to/checklists-app
 
 For example:
 ```bash
-cd /Users/me/Documents/Development/Antigravity/CheckLists/checklists-app
+cd /Users/me/Documents/Development/CheckLists/checklists-app
 ```
 
 #### Step 3: Install dependencies (first time only)
