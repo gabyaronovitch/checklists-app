@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-    CheckSquare,
     LayoutDashboard,
     Settings,
     FolderKanban,
 } from "lucide-react";
+
+const APP_VERSION = "1.0.0";
+const LAST_UPDATE = "10/12/2024";
 
 export default function Sidebar() {
     const pathname = usePathname();
@@ -39,6 +41,24 @@ export default function Sidebar() {
                     </Link>
                 ))}
             </nav>
+
+            {/* Footer with author info */}
+            <div
+                style={{
+                    marginTop: "auto",
+                    padding: "16px",
+                    borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                    fontSize: 11,
+                    color: "var(--color-text-muted)",
+                    lineHeight: 1.6,
+                }}
+            >
+                <div style={{ fontWeight: 500, color: "var(--color-sidebar-text)", marginBottom: 4 }}>
+                    Gaby Aronovitch
+                </div>
+                <div>Version {APP_VERSION}</div>
+                <div>Updated: {LAST_UPDATE}</div>
+            </div>
         </aside>
     );
 }
