@@ -60,7 +60,32 @@ Before you start, you need to have **Node.js** installed on your computer.
 
 ---
 
-### Step-by-Step Instructions
+### ⚡ Quick Install (Recommended)
+
+The easiest way to install! Just 3 commands:
+
+1. Open Terminal and navigate to the app folder:
+   ```bash
+   cd /path/to/checklists-app
+   ```
+
+2. Run the installer:
+   ```bash
+   ./install.sh
+   ```
+
+3. Start the app:
+   ```bash
+   npm run start
+   ```
+
+4. Open http://localhost:3000 in your browser
+
+**That's it!** 🎉
+
+---
+
+### Step-by-Step Instructions (Manual)
 
 #### Step 1: Open Terminal
 
