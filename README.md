@@ -113,9 +113,10 @@ echo DATABASE_URL="file:./prisma/dev.db" > .env
 
 #### Step 5: Setup the database (first time only)
 
+This generates the Prisma client, creates the database, and adds sample data:
+
 ```bash
-npx prisma db push
-npm run db:seed
+npm run db:setup
 ```
 
 #### Step 6: Start the application
