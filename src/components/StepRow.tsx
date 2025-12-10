@@ -94,7 +94,11 @@ export default function StepRow({
                 </div>
             )}
 
-            <div className="step-content" onClick={() => onEdit(step)}>
+            <div
+                className="step-content"
+                onClick={!isDefault ? () => onEdit(step) : undefined}
+                style={{ cursor: isDefault ? "default" : "pointer" }}
+            >
                 <h4 className="step-title">{step.title}</h4>
                 <div className="step-meta">
                     <span>
