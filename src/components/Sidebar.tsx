@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 const APP_VERSION = "1.0.0";
-const LAST_UPDATE = "10/12/2024";
+const LAST_UPDATE = "10/12/2025";
 
 export default function Sidebar() {
     const pathname = usePathname();
