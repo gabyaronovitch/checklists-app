@@ -206,6 +206,42 @@ export default function Dashboard() {
         const blob = await res.blob();
         const filename = exportFilename.endsWith(".csv") ? exportFilename : `${exportFilename}.csv`;
 
+        // Try to use the File System Access API for native "Save As" dialog
+        if ("showSaveFilePicker" in window) {
+          try {
+            const handle = await (window as unknown as {
+              showSaveFilePicker: (options: {
+                suggestedName: string;
+                startIn?: "desktop" | "documents" | "downloads" | "music" | "pictures" | "videos";
+                types: { description: string; accept: Record<string, string[]> }[];
+              }) => Promise<FileSystemFileHandle>
+            }).showSaveFilePicker({
+              suggestedName: filename,
+              startIn: "downloads",
+              types: [
+                {
+                  description: "CSV Files",
+                  accept: { "text/csv": [".csv"] },
+                },
+              ],
+            });
+
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            setExportModal(null);
+            return;
+          } catch (err) {
+            // User cancelled the save dialog or API failed
+            if ((err as Error).name === "AbortError") {
+              return; // User cancelled, don't fallback
+            }
+            // For other errors, fallback to traditional download
+            console.warn("Save picker failed, falling back to download:", err);
+          }
+        }
+
+        // Fallback: Traditional download for browsers without File System Access API
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;

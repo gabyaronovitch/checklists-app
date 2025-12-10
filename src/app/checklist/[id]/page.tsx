@@ -13,6 +13,7 @@ import {
     CheckCircle2,
     Clock,
     Calendar,
+    Download,
 } from "lucide-react";
 import {
     DndContext,
@@ -62,6 +63,10 @@ export default function ChecklistDetail({
     // Confirmation modals
     const [showDeleteChecklistConfirm, setShowDeleteChecklistConfirm] = useState(false);
     const [deleteStepId, setDeleteStepId] = useState<string | null>(null);
+
+    // Export modal
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportFilename, setExportFilename] = useState("");
 
     // Drag and drop sensors
     const sensors = useSensors(
@@ -140,6 +145,71 @@ export default function ChecklistDetail({
             }
         } catch (error) {
             console.error("Failed to clone checklist:", error);
+        }
+    };
+
+    const openExportModal = () => {
+        if (!checklist) return;
+        const safeTitle = checklist.title.replace(/[^a-z0-9]/gi, "_").substring(0, 50);
+        setExportFilename(`${safeTitle}_steps.csv`);
+        setShowExportModal(true);
+    };
+
+    const handleExport = async () => {
+        if (!checklist) return;
+
+        try {
+            const res = await fetch(`/api/checklists/${checklist.id}/export`);
+            if (res.ok) {
+                const blob = await res.blob();
+                const filename = exportFilename.endsWith(".csv") ? exportFilename : `${exportFilename}.csv`;
+
+                // Try to use the File System Access API for native "Save As" dialog
+                if ("showSaveFilePicker" in window) {
+                    try {
+                        const handle = await (window as unknown as {
+                            showSaveFilePicker: (options: {
+                                suggestedName: string;
+                                startIn?: "desktop" | "documents" | "downloads" | "music" | "pictures" | "videos";
+                                types: { description: string; accept: Record<string, string[]> }[];
+                            }) => Promise<FileSystemFileHandle>
+                        }).showSaveFilePicker({
+                            suggestedName: filename,
+                            startIn: "downloads",
+                            types: [
+                                {
+                                    description: "CSV Files",
+                                    accept: { "text/csv": [".csv"] },
+                                },
+                            ],
+                        });
+
+                        const writable = await handle.createWritable();
+                        await writable.write(blob);
+                        await writable.close();
+                        setShowExportModal(false);
+                        return;
+                    } catch (err) {
+                        if ((err as Error).name === "AbortError") {
+                            return;
+                        }
+                        console.warn("Save picker failed, falling back to download:", err);
+                    }
+                }
+
+                // Fallback: Traditional download
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                setShowExportModal(false);
+            }
+        } catch (error) {
+            console.error("Failed to export checklist:", error);
         }
     };
 
@@ -341,6 +411,10 @@ export default function ChecklistDetail({
                             Delete
                         </button>
                     )}
+                    <button className="btn btn-secondary" onClick={openExportModal}>
+                        <Download size={18} />
+                        Export
+                    </button>
                 </div>
             </div>
 
@@ -628,6 +702,58 @@ export default function ChecklistDetail({
                 confirmText="Delete"
                 variant="danger"
             />
+
+            {/* Export Modal */}
+            <Modal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                title="Export Steps to CSV"
+                footer={
+                    <>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => setShowExportModal(false)}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleExport}
+                            disabled={!exportFilename.trim()}
+                        >
+                            <Download size={16} />
+                            Export
+                        </button>
+                    </>
+                }
+            >
+                <div className="form-group">
+                    <label className="form-label">Checklist</label>
+                    <div style={{
+                        padding: "10px 12px",
+                        backgroundColor: "var(--color-bg)",
+                        borderRadius: 4,
+                        border: "1px solid var(--color-border)",
+                        fontSize: 14,
+                        color: "var(--color-text)"
+                    }}>
+                        {checklist?.title}
+                    </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Filename</label>
+                    <input
+                        type="text"
+                        className="form-input"
+                        value={exportFilename}
+                        onChange={(e) => setExportFilename(e.target.value)}
+                        placeholder="Enter filename"
+                    />
+                    <p style={{ marginTop: 6, fontSize: 12, color: "var(--color-text-muted)" }}>
+                        Choose where to save the file in the next dialog.
+                    </p>
+                </div>
+            </Modal>
         </>
     );
 }
