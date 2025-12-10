@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, FolderKanban, Copy, Trash2, MoreHorizontal } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, FolderKanban, Copy, Trash2, MoreHorizontal, Upload, Download, FileText, CheckCircle, AlertCircle } from "lucide-react";
 import ChecklistCard from "@/components/ChecklistCard";
 import Modal from "@/components/Modal";
 import ConfirmModal from "@/components/ConfirmModal";
-import { Checklist, Category } from "@/lib/types";
+import { Checklist, Category, Step } from "@/lib/types";
+import { validateCSVFile, parseCSV, CSVParseResult } from "@/lib/csv";
 
 export default function Dashboard() {
   const [checklists, setChecklists] = useState<Checklist[]>([]);
@@ -19,6 +20,12 @@ export default function Dashboard() {
   });
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  // CSV import state
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvParseResult, setCsvParseResult] = useState<CSVParseResult | null>(null);
+  const [importStatus, setImportStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchChecklists();
@@ -56,26 +63,112 @@ export default function Dashboard() {
     }
   };
 
+  const resetCreateModal = () => {
+    setNewChecklist({ title: "", description: "", categoryId: "" });
+    setCsvFile(null);
+    setCsvParseResult(null);
+    setImportStatus(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleCreate = async () => {
     if (!newChecklist.title.trim()) return;
 
     try {
+      const payload: {
+        title: string;
+        description: string;
+        categoryId: string | null;
+        steps?: Partial<Step>[];
+      } = {
+        ...newChecklist,
+        categoryId: newChecklist.categoryId || null,
+      };
+
+      // Include parsed steps if CSV was uploaded successfully
+      if (csvParseResult?.success && csvParseResult.steps.length > 0) {
+        payload.steps = csvParseResult.steps;
+      }
+
       const res = await fetch("/api/checklists", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...newChecklist,
-          categoryId: newChecklist.categoryId || null,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
+        const created = await res.json();
+        const stepCount = csvParseResult?.steps.length || 0;
+
         setShowCreateModal(false);
-        setNewChecklist({ title: "", description: "", categoryId: "" });
+        resetCreateModal();
         fetchChecklists();
+
+        if (stepCount > 0) {
+          setImportStatus({
+            type: "success",
+            message: `Checklist created with ${stepCount} imported step(s)!`,
+          });
+        }
+      } else {
+        const data = await res.json();
+        setImportStatus({
+          type: "error",
+          message: data.error || "Failed to create checklist",
+        });
       }
     } catch (error) {
       console.error("Failed to create checklist:", error);
+      setImportStatus({
+        type: "error",
+        message: "An error occurred while creating the checklist",
+      });
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setCsvFile(null);
+      setCsvParseResult(null);
+      return;
+    }
+
+    // Validate file
+    const validation = validateCSVFile(file);
+    if (!validation.valid) {
+      setImportStatus({ type: "error", message: validation.error! });
+      setCsvFile(null);
+      setCsvParseResult(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
+    setCsvFile(file);
+    setImportStatus(null);
+
+    // Read and parse file
+    try {
+      const content = await file.text();
+      const result = parseCSV(content);
+      setCsvParseResult(result);
+
+      if (!result.success && result.errors.length > 0) {
+        setImportStatus({
+          type: "error",
+          message: result.errors.join("; "),
+        });
+      }
+    } catch (error) {
+      setImportStatus({
+        type: "error",
+        message: "Failed to read CSV file",
+      });
+      setCsvParseResult(null);
     }
   };
 
@@ -90,6 +183,30 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Failed to clone checklist:", error);
+    }
+    setActionMenuId(null);
+  };
+
+  const handleExport = async (id: string) => {
+    try {
+      const res = await fetch(`/api/checklists/${id}/export`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const contentDisposition = res.headers.get("Content-Disposition");
+        const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+        const filename = filenameMatch?.[1] || "steps.csv";
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Failed to export checklist:", error);
     }
     setActionMenuId(null);
   };
@@ -178,6 +295,17 @@ export default function Dashboard() {
                               Clone
                             </button>
                             <button
+                              className="actions-menu-item"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleExport(checklist.id);
+                              }}
+                            >
+                              <Download size={16} />
+                              Export CSV
+                            </button>
+                            <button
                               className="actions-menu-item danger"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -248,13 +376,19 @@ export default function Dashboard() {
       {/* Create Modal */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false);
+          resetCreateModal();
+        }}
         title="Create New Checklist"
         footer={
           <>
             <button
               className="btn btn-secondary"
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false);
+                resetCreateModal();
+              }}
             >
               Cancel
             </button>
@@ -310,6 +444,118 @@ export default function Dashboard() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* CSV Import Section */}
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Import Steps from CSV (Optional)</label>
+          <div
+            style={{
+              border: "2px dashed var(--color-border)",
+              borderRadius: 8,
+              padding: 16,
+              textAlign: "center",
+              backgroundColor: "var(--color-bg)",
+            }}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileSelect}
+              style={{ display: "none" }}
+              id="csv-upload"
+            />
+            <label
+              htmlFor="csv-upload"
+              style={{
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <Upload size={24} color="var(--color-text-muted)" />
+              <span style={{ color: "var(--color-text-subtle)", fontSize: 14 }}>
+                Click to select a CSV file
+              </span>
+              <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+                Columns: title, description, durationMinutes, status, etc.
+              </span>
+            </label>
+          </div>
+
+          {/* Selected file info */}
+          {csvFile && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                backgroundColor: csvParseResult?.success
+                  ? "var(--color-status-completed-bg)"
+                  : "var(--color-bg)",
+                borderRadius: 6,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <FileText size={20} color="var(--color-primary)" />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500, fontSize: 14 }}>{csvFile.name}</div>
+                {csvParseResult?.success && (
+                  <div style={{ color: "var(--color-status-completed)", fontSize: 12 }}>
+                    ✓ {csvParseResult.steps.length} step(s) ready to import
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setCsvFile(null);
+                  setCsvParseResult(null);
+                  setImportStatus(null);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          )}
+
+          {/* Import status message */}
+          {importStatus && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 12,
+                backgroundColor:
+                  importStatus.type === "success"
+                    ? "var(--color-status-completed-bg)"
+                    : "var(--color-status-rejected-bg)",
+                color:
+                  importStatus.type === "success"
+                    ? "var(--color-status-completed)"
+                    : "var(--color-status-rejected)",
+                borderRadius: 6,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                fontSize: 13,
+              }}
+            >
+              {importStatus.type === "success" ? (
+                <CheckCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+              ) : (
+                <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+              )}
+              <span>{importStatus.message}</span>
+            </div>
+          )}
         </div>
       </Modal>
 
